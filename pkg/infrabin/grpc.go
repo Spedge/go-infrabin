@@ -1,14 +1,13 @@
 package infrabin
 
 import (
-	"log"
-	"net"
-
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+	"log"
+	"net"
 )
 
 // Server wraps the gRPC server and implements infrabin.Infrabin
@@ -50,7 +49,11 @@ func NewGRPCServer(config *Config) *GRPCServer {
 
 	// Create the gPRC services
 	healthServer := health.NewServer()
-	infrabinService := &InfrabinService{Config: config}
+	infrabinService := &InfrabinService{
+		Config: config,
+		LivenessHealthService: healthServer,
+		ReadinessHealthService: healthServer,
+	}
 
 	// Register gRPC services on the grpc server
 	RegisterInfrabinServer(gs, infrabinService)

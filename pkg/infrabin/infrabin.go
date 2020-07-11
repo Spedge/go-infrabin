@@ -3,6 +3,7 @@ package infrabin
 import (
 	"bytes"
 	"context"
+	"google.golang.org/grpc/health"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -25,6 +26,8 @@ import (
 type InfrabinService struct {
 	UnimplementedInfrabinServer
 	Config *Config
+	LivenessHealthService   *health.Server
+	ReadinessHealthService   *health.Server
 }
 
 func (s *InfrabinService) Root(ctx context.Context, _ *Empty) (*Response, error) {
@@ -135,4 +138,19 @@ func (s *InfrabinService) AWS(ctx context.Context, request *AWSRequest) (*struct
 	}
 	u.Path = request.Path
 	return s.Proxy(ctx, &ProxyRequest{Method: "GET", Url: u.String()})
+}
+
+func (s *InfrabinService) SetServingStatus(ctx context.Context, request *SetServingStatusMessage) (*SetServingStatusMessage, error) {
+	if request.Probe == SetServingStatusMessage_LIVENESS {
+		// Set the root and infrabin.Infrabin health
+		s.LivenessHealthService.SetServingStatus("", request.Status)
+		s.LivenessHealthService.SetServingStatus("infrabin.Infrabin", request.Status)
+	} else if request.Probe == SetServingStatusMessage_READINESS {
+		// Set the root and infrabin.Infrabin health
+		s.ReadinessHealthService.SetServingStatus("", request.Status)
+		s.ReadinessHealthService.SetServingStatus("infrabin.Infrabin", request.Status)
+	} else {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid SetServingStatusMessage")
+	}
+	return request, nil
 }

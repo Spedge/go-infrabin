@@ -96,11 +96,6 @@ message AWSRequest {
 }
 
 message SetServingStatusMessage {
-    enum ProbeType {
-        UNKNOWN = 0;
-        LIVENESS = 1;
-        READINESS = 2;
-    }
-    ProbeType probe = 1;
-    grpc.health.v1.HealthCheckResponse.ServingStatus status = 2;
+    string probe = 1;
+    string status = 2;
 }

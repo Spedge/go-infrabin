@@ -8,6 +8,8 @@ import (
 	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
+	"time"
+	"context"
 )
 
 // Server wraps the gRPC server and implements infrabin.Infrabin
@@ -33,11 +35,27 @@ func (s *GRPCServer) ListenAndServe() {
 }
 
 func (s *GRPCServer) Shutdown() {
-	log.Printf("Set all serving status to NOT_SERVING")
-	s.HealthService.Shutdown()
-	log.Printf("Shutting down %s server with GracefulStop()", s.Name)
-	s.Server.GracefulStop()
-	log.Printf("gRPC %s server stopped", s.Name)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	gracefulDone := make(chan struct{}, 1)
+
+	go func() {
+		log.Printf("Set all serving status to NOT_SERVING")
+		s.HealthService.Shutdown()
+		log.Printf("Shutting down %s server with GracefulStop()", s.Name)
+		s.Server.GracefulStop()
+		log.Printf("gRPC %s server stopped", s.Name)
+		gracefulDone <- struct{}{}
+	}()
+
+	select {
+	case <-gracefulDone:
+		return
+	case <-ctx.Done():
+		log.Printf("Shutting down %s server with Stop() as it took too long", s.Name)
+		s.Server.Stop()
+		return
+	}
 }
 
 // New creates a new rpc server.

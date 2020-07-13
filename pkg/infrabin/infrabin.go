@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -21,6 +22,11 @@ import (
 
 	"github.com/maruina/go-infrabin/internal/helpers"
 )
+
+var servingStatusMap = map[string]grpc_health_v1.HealthCheckResponse_ServingStatus{
+	"fail": grpc_health_v1.HealthCheckResponse_NOT_SERVING,
+	"pass": grpc_health_v1.HealthCheckResponse_SERVING,
+}
 
 // Must embed UnimplementedInfrabinServer for `protogen-gen-go-grpc`
 type InfrabinService struct {
@@ -141,16 +147,18 @@ func (s *InfrabinService) AWS(ctx context.Context, request *AWSRequest) (*struct
 }
 
 func (s *InfrabinService) SetServingStatus(ctx context.Context, request *SetServingStatusMessage) (*SetServingStatusMessage, error) {
-	if request.Probe == SetServingStatusMessage_LIVENESS {
-		// Set the root and infrabin.Infrabin health
-		s.LivenessHealthService.SetServingStatus("", request.Status)
-		s.LivenessHealthService.SetServingStatus("infrabin.Infrabin", request.Status)
-	} else if request.Probe == SetServingStatusMessage_READINESS {
-		// Set the root and infrabin.Infrabin health
-		s.ReadinessHealthService.SetServingStatus("", request.Status)
-		s.ReadinessHealthService.SetServingStatus("infrabin.Infrabin", request.Status)
+	if servingStatus, ok := servingStatusMap[request.Status]; ok {
+		if request.Probe == "liveness" {
+			// Set the root and infrabin.Infrabin health
+			s.LivenessHealthService.SetServingStatus("", servingStatus)
+			s.LivenessHealthService.SetServingStatus("infrabin.Infrabin", servingStatus)
+		} else if request.Probe == "readiness" {
+			// Set the root and infrabin.Infrabin health
+			s.ReadinessHealthService.SetServingStatus("", servingStatus)
+			s.ReadinessHealthService.SetServingStatus("infrabin.Infrabin", servingStatus)
+		}
+		return request, nil
 	} else {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid SetServingStatusMessage")
 	}
-	return request, nil
 }
